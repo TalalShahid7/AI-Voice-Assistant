@@ -39,115 +39,81 @@
     </div>
 
     <script>
+    const micBtn = document.getElementById('mic-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const statusText = document.getElementById('status-text');
+    const subStatus = document.getElementById('sub-status');
+    const chatBox = document.getElementById('chat-box');
+    const clearBtn = document.getElementById('clear-btn');
 
-        const GROQ_API_KEY = "PLACEHOLDER_KEY";
-        const micBtn = document.getElementById('mic-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const statusText = document.getElementById('status-text');
-        const subStatus = document.getElementById('sub-status');
-        const chatBox = document.getElementById('chat-box');
-        const clearBtn = document.getElementById('clear-btn');
+    let isRunning = false;
+    let recognition;
 
-        let isRunning = false;
-        let recognition;
+    let conversationHistory = [
+        {
+            "role": "system", 
+            "content": "You are a helpful AI voice assistant. Keep answers short, natural, and conversational."
+        }
+    ];
 
-        let conversationHistory = [
-            {
-                "role": "system", 
-                "content": "You are a helpful AI voice assistant. Keep answers short, natural, and conversational."
+    // Browser recognition drive initialization
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+    } else {
+        alert("Web Speech API is not supported in this browser. Please use Chrome or Edge.");
+    }
+
+    // Browser Audio Synthesis (Output Engine)
+    function speak(text, callback) {
+        window.speechSynthesis.cancel(); 
+        const utterance = new SpeechSynthesisUtterance(text);
+        let voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            let selectedVoice = voices.find(v => v.lang.includes('en-US') || v.lang.includes('en-GB'));
+            if (selectedVoice) utterance.voice = selectedVoice;
+        }
+        utterance.rate = 1.0;
+        utterance.onend = () => { if (callback) callback(); };
+        utterance.onerror = () => { if (callback) callback(); };
+        window.speechSynthesis.speak(utterance);
+    }
+
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+    }
+
+    // Main loop implementation
+    function startListeningLoop() {
+        if (!isRunning) return;
+        statusText.innerText = "🎙️ Listening... Speak now.";
+        micBtn.style.animation = "pulse 1.5s infinite";
+        try { recognition.start(); } catch (e) {}
+    }
+
+    if (recognition) {
+        recognition.onresult = async (event) => {
+            const userText = event.results[0][0].transcript;
+            statusText.innerText = "⚡ Processing response...";
+            micBtn.style.animation = "none";
+
+            appendMessage('user', '🧑 You', userText);
+
+            const exitWords = ["exit", "quit", "stop", "bye", "goodbye"];
+            const isExit = exitWords.some(word => userText.toLowerCase().includes(word));
+
+            if (isExit) {
+                appendMessage('ai', '🤖 AI Assistant', "Goodbye! 👋");
+                speak("Goodbye!", () => { stopAssistant(); });
+                return;
             }
-        ];
 
-        // Browser recognition drive initialization
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
-        } else {
-            alert("Web Speech API is not supported in this browser. Please use Chrome or Edge.");
-        }
-
-        //  Browser Audio Synthesis (Output Engine)
-        function speak(text, callback) {
-            window.speechSynthesis.cancel(); 
-            const utterance = new SpeechSynthesisUtterance(text);
-            let voices = window.speechSynthesis.getVoices();
-            if (voices.length > 0) {
-                let selectedVoice = voices.find(v => v.lang.includes('en-US') || v.lang.includes('en-GB'));
-                if (selectedVoice) utterance.voice = selectedVoice;
-            }
-            utterance.rate = 1.0;
-            utterance.onend = () => { if (callback) callback(); };
-            utterance.onerror = () => { if (callback) callback(); };
-            window.speechSynthesis.speak(utterance);
-        }
-
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
-        }
-
-        // Main loop implementation
-        function startListeningLoop() {
-            if (!isRunning) return;
-            statusText.innerText = "🎙️ Listening... Speak now.";
-            micBtn.style.animation = "pulse 1.5s infinite";
-            try { recognition.start(); } catch (e) {}
-        }
-
-       recognition.onresult = async (event) => {
-        const userText = event.results[0][0].transcript;
-        statusText.innerText = "⚡ Processing response...";
-        micBtn.style.animation = "none";
-
-        appendMessage('user', '🧑 You', userText);
-
-        const exitWords = ["exit", "quit", "stop", "bye", "goodbye"];
-        const isExit = exitWords.some(word => userText.toLowerCase().includes(word));
-
-        if (isExit) {
-            appendMessage('ai', '🤖 AI Assistant', "Goodbye! 👋");
-            speak("Goodbye!", () => { stopAssistant(); });
-            return;
-        }
-
-
-        conversationHistory.push({"role": "user", "content": userText});
-
-        try {
-            const response = await fetch("/api/chat", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: conversationHistory
-                })
-            });
-            
-            const data = await response.json();
-            const aiResponse = data.choices[0].message.content;
-            conversationHistory.push({"role": "assistant", "content": aiResponse});
-
-            if (!isRunning) return;
-
-            appendMessage('ai', '🤖 AI Assistant', aiResponse);
-
-            speak(aiResponse, () => {
-                if (isRunning) setTimeout(startListeningLoop, 400);
-            });
-
-        } catch (err) {
-            console.error(err);
-            if (isRunning) setTimeout(startListeningLoop, 1000);
-        }
-    };
             conversationHistory.push({"role": "user", "content": userText});
 
             try {
-
                 const response = await fetch("/api/chat", {
                     method: 'POST',
                     headers: {
@@ -158,8 +124,13 @@
                         messages: conversationHistory
                     })
                 });
-                
+
                 const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || "Server error");
+                }
+
                 const aiResponse = data.choices[0].message.content;
                 conversationHistory.push({"role": "assistant", "content": aiResponse});
 
@@ -172,10 +143,12 @@
                 });
 
             } catch (err) {
-                console.error(err);
+                console.error("API Error:", err);
+                statusText.innerText = "❌ Error processing response.";
                 if (isRunning) setTimeout(startListeningLoop, 1000);
             }
-       
+        };
+
         recognition.onerror = (event) => {
             if (!isRunning) return;
             micBtn.style.animation = "none";
@@ -187,48 +160,48 @@
 
             statusText.innerText = `🔄 ${errorMsg}`;
             
-            
             speak(errorMsg, () => {
                 if (isRunning && event.error !== 'not-allowed') {
                     setTimeout(startListeningLoop, 500);
                 }
             });
         };
+    }
 
-        function stopAssistant() {
-            isRunning = false;
-            try { recognition.stop(); } catch(e){}
-            window.speechSynthesis.cancel();
-            micBtn.style.animation = "none";
-            statusText.innerText = "Click Mic to Start Continuous Mode";
-            subStatus.innerText = "Assistant state: Inactive.";
-            stopBtn.style.display = "none";
+    function stopAssistant() {
+        isRunning = false;
+        try { recognition.stop(); } catch(e){}
+        window.speechSynthesis.cancel();
+        micBtn.style.animation = "none";
+        statusText.innerText = "Click Mic to Start Continuous Mode";
+        subStatus.innerText = "Assistant state: Inactive.";
+        stopBtn.style.display = "none";
+    }
+
+    micBtn.addEventListener('click', () => {
+        if (isRunning) return;
+        isRunning = true;
+        stopBtn.style.display = "block";
+        subStatus.innerText = "Continuous mode active. Press the red button to pause.";
+        startListeningLoop();
+    });
+
+    stopBtn.addEventListener('click', () => { stopAssistant(); });
+
+    clearBtn.addEventListener('click', () => {
+        if(confirm("Clear conversation history?")) {
+            conversationHistory = [{"role": "system", "content": "You are a helpful AI voice assistant."}];
+            chatBox.innerHTML = '';
         }
+    });
 
-        micBtn.addEventListener('click', () => {
-            if (isRunning) return;
-            isRunning = true;
-            stopBtn.style.display = "block";
-            subStatus.innerText = "Continuous mode active. Press the red button to pause.";
-            startListeningLoop();
-        });
-
-        stopBtn.addEventListener('click', () => { stopAssistant(); });
-
-        clearBtn.addEventListener('click', () => {
-            if(confirm("Clear conversation history?")) {
-                conversationHistory = [{"role": "system", "content": "You are a helpful AI voice assistant."}];
-                chatBox.innerHTML = '';
-            }
-        });
-
-        function appendMessage(role, label, text) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `${role}-message`;
-            msgDiv.innerHTML = `<div class="${role}-label">${label}</div><div>${text}</div>`;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-    </script>
+    function appendMessage(role, label, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `${role}-message`;
+        msgDiv.innerHTML = `<div class="${role}-label">${label}</div><div>${text}</div>`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
 </body>
 </html>
