@@ -96,22 +96,54 @@
             try { recognition.start(); } catch (e) {}
         }
 
-        recognition.onresult = async (event) => {
-            const userText = event.results[0][0].transcript;
-            statusText.innerText = "⚡ Processing response...";
-            micBtn.style.animation = "none";
+       recognition.onresult = async (event) => {
+        const userText = event.results[0][0].transcript;
+        statusText.innerText = "⚡ Processing response...";
+        micBtn.style.animation = "none";
 
-            appendMessage('user', '🧑 You', userText);
+        appendMessage('user', '🧑 You', userText);
 
-            const exitWords = ["exit", "quit", "stop", "bye", "goodbye"];
-            const isExit = exitWords.some(word => userText.toLowerCase().includes(word));
+        const exitWords = ["exit", "quit", "stop", "bye", "goodbye"];
+        const isExit = exitWords.some(word => userText.toLowerCase().includes(word));
 
-            if (isExit) {
-                appendMessage('ai', '🤖 AI Assistant', "Goodbye! 👋");
-                speak("Goodbye!", () => { stopAssistant(); });
-                return;
-            }
+        if (isExit) {
+            appendMessage('ai', '🤖 AI Assistant', "Goodbye! 👋");
+            speak("Goodbye!", () => { stopAssistant(); });
+            return;
         }
+
+
+        conversationHistory.push({"role": "user", "content": userText});
+
+        try {
+            const response = await fetch("/api/chat", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: "llama-3.3-70b-versatile",
+                    messages: conversationHistory
+                })
+            });
+            
+            const data = await response.json();
+            const aiResponse = data.choices[0].message.content;
+            conversationHistory.push({"role": "assistant", "content": aiResponse});
+
+            if (!isRunning) return;
+
+            appendMessage('ai', '🤖 AI Assistant', aiResponse);
+
+            speak(aiResponse, () => {
+                if (isRunning) setTimeout(startListeningLoop, 400);
+            });
+
+        } catch (err) {
+            console.error(err);
+            if (isRunning) setTimeout(startListeningLoop, 1000);
+        }
+    };
             conversationHistory.push({"role": "user", "content": userText});
 
             try {
