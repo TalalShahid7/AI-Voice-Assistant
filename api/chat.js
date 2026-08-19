@@ -6,11 +6,11 @@ export default async function handler(req, res) {
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'GROQ_API_KEY Missing in Vercel settings.' });
+    return res.status(500).json({ error: 'GROQ_API_KEY is missing in Vercel settings.' });
   }
 
   try {
-    const { model = "gemma2-9b-it", messages = [] } = req.body || {};
+    const { model = "llama-3.3-70b-versatile", messages = [] } = req.body || {};
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: 'POST',
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       return res.status(response.status).json({ 
-        error: data.error?.message || "Groq API error",
+        error: data.error?.message || "Groq API Error",
         raw: data
       });
     }
