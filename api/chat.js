@@ -6,27 +6,36 @@ export default async function handler(req, res) {
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'GROQ_API_KEY is not set in Vercel Environment Variables.' });
+    return res.status(500).json({ error: 'GROQ_API_KEY Missing in Vercel settings.' });
   }
 
   try {
+    const { model = "gemma2-9b-it", messages = [] } = req.body || {};
+
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${apiKey.trim()}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.7
+      })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || 'Groq API Request Failed' });
+      return res.status(response.status).json({ 
+        error: data.error?.message || "Groq API error",
+        raw: data
+      });
     }
 
     return res.status(200).json(data);
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch Groq API', details: err.message });
+    return res.status(500).json({ error: 'Server Exception', details: err.message });
   }
 }

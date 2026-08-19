@@ -120,7 +120,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model:"llama-3.1-8b-instant",  
+                        model: "gemma2-9b-it",
                         messages: conversationHistory
                     })
                 });
@@ -128,11 +128,12 @@
                 const data = await response.json();
 
                 if (!response.ok || data.error) {
-                    throw new Error(data.error || "API Error");
+                    const errDetail = typeof data.error === 'string' ? data.error : (data.error?.message || "API Error");
+                    throw new Error(errDetail);
                 }
 
-                if (!data.choices || !data.choices[0]) {
-                    throw new Error("Invalid API response format");
+                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                    throw new Error("Invalid response structure from Groq API");
                 }
 
                 const aiResponse = data.choices[0].message.content;
@@ -149,7 +150,7 @@
             } catch (err) {
                 console.error("API Error details:", err);
                 statusText.innerText = "❌ Error: " + err.message;
-                appendMessage('ai', '🤖 System Error', "API Response Issue: " + err.message);
+                appendMessage('ai', '🤖 System Error', "Response Issue: " + err.message);
                 if (isRunning) setTimeout(startListeningLoop, 2000);
             }
         };
