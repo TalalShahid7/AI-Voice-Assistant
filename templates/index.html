@@ -126,9 +126,13 @@
                 });
 
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || "Server error");
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || "API Error");
+                }
+
+                if (!data.choices || !data.choices[0]) {
+                    throw new Error("Invalid API response format");
                 }
 
                 const aiResponse = data.choices[0].message.content;
@@ -143,9 +147,10 @@
                 });
 
             } catch (err) {
-                console.error("API Error:", err);
-                statusText.innerText = "❌ Error processing response.";
-                if (isRunning) setTimeout(startListeningLoop, 1000);
+                console.error("API Error details:", err);
+                statusText.innerText = "❌ Error: " + err.message;
+                appendMessage('ai', '🤖 System Error', "API Response Issue: " + err.message);
+                if (isRunning) setTimeout(startListeningLoop, 2000);
             }
         };
 
