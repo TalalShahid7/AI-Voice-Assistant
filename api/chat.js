@@ -10,7 +10,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Model ID update kar ke active Groq model "openai/gpt-oss-20b" rakh diya hai
     const { model = "openai/gpt-oss-20b", messages = [] } = req.body || {};
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
